@@ -54,4 +54,45 @@ app.get('/jobs/unpaid',getProfile ,async (req, res) =>{
     })
     res.json(jobs)
 })
+
+/**
+ * Pays a job as a client
+ */
+app.post('/jobs/:job_id/pay',getProfile ,async (req, res) =>{
+    const {Profile,Contract,Job} = req.app.get('models')
+    const contract = await Contract.findOne({
+        include: {
+            model: Job,
+            where: {
+                id: req.params.job_id,
+            },
+        },
+        where: {
+            // todo bug: this reference throws an exception "SQLITE_ERROR: no such column: Job.ContractId"
+            id: sequelize.col('Job.ContractId'),
+            status: {[Op.not]: 'terminated'},
+            ClientId: req.profile.id,
+        },
+    })
+    if (!contract) return res.status(404).end()
+    // todo maybe merge subsequent Profile queries
+    const [client, contractor] = await Promise.all([
+        Profile.findOne({where: {
+            id: contract.ClientId,
+        }}),
+        Profile.findOne({where: {
+            id: contract.ContractorId,
+        }}),
+    ])
+    if (contract.Job.paid) return res.status(200).end()
+    if (contract.Job.price > client.balance) return res.status(402).end()
+    await sequelize.transaction(async (transaction) => {
+        return Promise.all([
+            await Profile.increment({ balance: job.price * -1 }, { where: { id: client.id } }, transaction),
+            await Profile.increment({ balance: job.price }, { where: { id: contractor.id } }, transaction),
+            await Job.update({ paid: true, paymentDate: Date.now() }, { where: { id: contract.Job.id } }, transaction),
+        ])
+    })
+    res.status(200).end()
+})
 module.exports = app;
