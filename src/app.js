@@ -161,4 +161,41 @@ app.get('/admin/best-profession', async (req, res) =>{
     })
     res.json(professionEarnings[0])
 })
+
+/**
+ * @returns the clients that paid the most for jobs in the query time period
+ */
+app.get('/admin/best-clients', async (req, res) =>{
+    const {Contract, Job, Profile} = req.app.get('models')
+    const clients = await Profile.findAll({
+        attributes: [
+            'id',
+            'fullName',
+            // todo bug: this reference throws an exception "SQLITE_ERROR: no such column: Job.price"
+            [sequelize.fn('sum', sequelize.col('Job.price')), 'paid'],
+        ],
+        order: sequelize.col('paid'),
+        include: {
+            model: Contract,
+            include: {
+                model: Job,
+                where: {
+                    paymentDate: {
+                        [Op.gt]: req.query.start,
+                        [Op.lt]: req.query.end,
+                    },
+                },
+            },
+            as: 'Contractor',
+            where: {
+                id: sequelize.col('Job.ContractId'),
+            },
+        },
+        where: {
+            id: sequelize.col('Contract.ClientId'),
+        },
+        limit: req.query.limit || 2,
+    })
+    res.json(clients)
+})
 module.exports = app;

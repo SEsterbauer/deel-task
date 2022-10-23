@@ -16,6 +16,15 @@ Profile.init(
       type: Sequelize.STRING,
       allowNull: false
     },
+    fullName: {
+      type: Sequelize.VIRTUAL,
+      get() {
+        return `${this.firstName} ${this.lastName}`;
+      },
+      set(value) {
+        throw new Error('attempt to write read-only property');
+      },
+    },
     profession: {
       type: Sequelize.STRING,
       allowNull: false
