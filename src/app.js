@@ -33,4 +33,25 @@ app.get('/contracts',getProfile ,async (req, res) =>{
     }})
     res.json(contracts)
 })
+
+/**
+ * @returns all unpaid jobs of profile
+ */
+app.get('/jobs/unpaid',getProfile ,async (req, res) =>{
+    const {Contract,Job} = req.app.get('models')
+    const jobs = await Job.findAll({
+        include: {
+            model: Contract,
+            where: {
+                status: 'in_progress', // todo verify if "active contracts" have status "in_progress"
+                [Op.or]: [{ContractorId: req.profile.id}, {ClientId: req.profile.id}],
+            },
+        },
+        where: {
+            ContractId: sequelize.col('Contract.id'),
+            paid: null,
+        }
+    })
+    res.json(jobs)
+})
 module.exports = app;
