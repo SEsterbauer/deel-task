@@ -126,4 +126,39 @@ app.post('/balances/deposit/:userId' ,async (req, res) =>{
     await Profile.increment({ balance: req.body.amount }, { where: { id: client.id } })
     res.status(200).end()
 })
+
+/**
+ * @returns the profession that earned the most money
+ */
+app.get('/admin/best-profession', async (req, res) =>{
+    const {Contract, Job, Profile} = req.app.get('models')
+    const professionEarnings = await Profile.findAll({
+        attributes: [
+            'profession',
+            // todo bug: this reference throws an exception "SQLITE_ERROR: no such column: Job.price"
+            [sequelize.fn('sum', sequelize.col('Job.price')), 'total_amount_earned'],
+        ],
+        order: sequelize.col('total_amount_earned'),
+        include: {
+            model: Contract,
+            include: {
+                model: Job,
+                where: {
+                    paymentDate: {
+                        [Op.gt]: req.query.start,
+                        [Op.lt]: req.query.end,
+                    },
+                },
+            },
+            as: 'Contractor',
+            where: {
+                id: sequelize.col('Job.ContractId'),
+            },
+        },
+        where: {
+            id: sequelize.col('Contractor.ContractorId'),
+        },
+    })
+    res.json(professionEarnings[0])
+})
 module.exports = app;
