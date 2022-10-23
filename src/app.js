@@ -95,4 +95,35 @@ app.post('/jobs/:job_id/pay',getProfile ,async (req, res) =>{
     })
     res.status(200).end()
 })
+
+/**
+ * Deposits money into the account of a client
+ */
+app.post('/balances/deposit/:userId' ,async (req, res) =>{
+    const {Profile,Contract,Job} = req.app.get('models')
+    // todo verify if this route should be admin-scoped, due to :userId being present
+    const client = await Profile.findOne({where: {
+        id: req.params.userId,
+    }})
+    if(!client) return res.status(404).end()
+    const debt = await Job.findOne({
+        attributes: [
+            [sequelize.fn('sum', sequelize.col('price')), 'total'],
+        ],
+        include: {
+            model: Contract,
+            where: {
+                status: {[Op.not]: 'terminated'},
+                ClientId: client.id,
+            },
+        },
+        where: {
+            ContractId: sequelize.col('Contract.id'),
+            paid: null,
+        },
+    })
+    if (req.body.amount > debt.get('total') * 1.25) return res.status(400).end()
+    await Profile.increment({ balance: req.body.amount }, { where: { id: client.id } })
+    res.status(200).end()
+})
 module.exports = app;
